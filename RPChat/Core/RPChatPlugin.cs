@@ -34,11 +34,6 @@ namespace RPChat.Core
 
         public override TranslationList DefaultTranslations => new TranslationList()
         {
-            { "global_chat_is_disabled",    "Глобальный чат отключен используйте /nrp" },   // -
-            { "local_chat_is_disabled",     "Локальный чат отключен" },                     // -
-            { "group_chat_is_disabled",     "Груповой чат отключен" },                      // -
-
-
             { "global_chat_is_disabled",    "Глобальный чат отключен, используйте /nrp;" }, // -
             { "local_chat_is_disabled",     "Локальный чат отключен!" },                    // -
             { "group_chat_is_disabled",     "Групповой чат отключен!" },                    // -

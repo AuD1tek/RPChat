@@ -1,6 +1,7 @@
 ﻿using Rocket.API;
 using Rocket.API.Collections;
 using Rocket.API.Extensions;
+using Rocket.Core;
 using Rocket.Core.Commands;
 using Rocket.Core.Plugins;
 using Rocket.Unturned.Chat;
@@ -9,6 +10,7 @@ using Rocket.Unturned.Player;
 using SDG.Unturned;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using UnityEngine;
 
 namespace RPChat.Core
@@ -32,6 +34,11 @@ namespace RPChat.Core
 
         public override TranslationList DefaultTranslations => new TranslationList()
         {
+            { "global_chat_is_disabled",    "Глобальный чат отключен используйте /nrp" },   // -
+            { "local_chat_is_disabled",     "Локальный чат отключен" },                     // -
+            { "group_chat_is_disabled",     "Груповой чат отключен" },                      // -
+
+
             { "global_chat_is_disabled",    "Глобальный чат отключен, используйте /nrp;" }, // -
             { "local_chat_is_disabled",     "Локальный чат отключен!" },                    // -
             { "group_chat_is_disabled",     "Групповой чат отключен!" },                    // -
@@ -67,27 +74,23 @@ namespace RPChat.Core
         };
 
 
-
-        public string IgnoreDisableGlobalChatPermission => "rpchat.ignore.disable.global.chat"; // Permission for ignore disable global chat
-        public string IgnoreDisableLocalChatPermission => "rpchat.ignore.disable.global.chat";  // Permission for ignore disable local chat
-        public string IgnoreDisableGroupChatPermission => "rpchat.ignore.disable.global.chat";  // Permission for ignore disable group chat
-
+        public string IgnoreDisabledChatsPermission => "rpchat.ignore.disable.chats"; // Permission for ignore disabled chats
 
         private void onPlayerChatted(UnturnedPlayer player, ref Color color, string message, EChatMode chatMode, ref bool cancel)
         {
-            if (chatMode == EChatMode.GLOBAL && Configuration.Instance.DisableGlobalChat && player?.HasPermission(IgnoreDisableGlobalChatPermission) == false)
+            if (chatMode == EChatMode.GLOBAL && Configuration.Instance.DisableGlobalChat && !PlayerHasPermission(player, IgnoreDisabledChatsPermission))
             {
-                // TODO: Say! Translate: global_chat_is_disabled
+                UnturnedChat.Say(player, Instance.Translate("global_chat_is_disabled"), Color.red);
                 cancel = true;
             }
-            else if (chatMode == EChatMode.LOCAL && Configuration.Instance.DisableLocalChat && player?.HasPermission(IgnoreDisableLocalChatPermission) == false)
+            else if (chatMode == EChatMode.LOCAL && Configuration.Instance.DisableLocalChat && !PlayerHasPermission(player, IgnoreDisabledChatsPermission))
             {
-                // TODO: Say! Translate: local_chat_is_disabled
+                UnturnedChat.Say(player, Instance.Translate("local_chat_is_disabled"), Color.red);
                 cancel = true;
             }
-            else if (chatMode == EChatMode.GROUP && Configuration.Instance.DisableGroupChat && player?.HasPermission(IgnoreDisableGroupChatPermission) == false)
+            else if (chatMode == EChatMode.GROUP && Configuration.Instance.DisableGroupChat && !PlayerHasPermission(player, IgnoreDisabledChatsPermission))
             {
-                // TODO: Say! Translate: group_chat_is_disabled
+                UnturnedChat.Say(player, Instance.Translate("group_chat_is_disabled"), Color.red);
                 cancel = true;
             }
         }
@@ -113,6 +116,10 @@ namespace RPChat.Core
             return players;
         }
 
+        public bool PlayerHasPermission(UnturnedPlayer player, string permission)
+        {
+            return (player.IsAdmin && !Configuration.Instance.IgnoreAdmin) || player.GetPermissions().Any(p => p.Name == permission);
+        }
 
 
         #region Commands:
@@ -120,7 +127,7 @@ namespace RPChat.Core
 
         [RocketCommand("nrp", "", "/nrp [text]", AllowedCaller.Player)]
         [RocketCommandPermission("rpchat.nrp")]
-        private void ExecuteNrpCommand(IRocketPlayer caller, string[] command) // /nrp (text: 0)
+        public void ExecuteNrpCommand(IRocketPlayer caller, string[] command) // /nrp (text: 0)
         {
             UnturnedPlayer player = (UnturnedPlayer)caller;
             string text = command.GetParameterString(0);
@@ -136,8 +143,7 @@ namespace RPChat.Core
                 fromPlayer: player.SteamPlayer(),
                 toPlayer:   null,
                 mode:       EChatMode.SAY,
-                iconURL:    null,
-                Configuration.Instance.NRPChatUseRichTextFormatting);
+                iconURL:    null);
 
         }
 
@@ -145,11 +151,17 @@ namespace RPChat.Core
 
         [RocketCommand("sms", "", "/sms (player) [text]", AllowedCaller.Player)]
         [RocketCommandPermission("rpchat.sms")]
-        private void ExecuteSmsCommand(IRocketPlayer caller, string[] command) // /sms (player: 0) [text: 1]
+        public void ExecuteSmsCommand(IRocketPlayer caller, string[] command) // /sms (player: 0) [text: 1]
         {
             UnturnedPlayer player = (UnturnedPlayer)caller;
             UnturnedPlayer toPlayer = UnturnedPlayer.FromName(command.GetStringParameter(0));
+            string text = command.GetParameterString(1);
 
+            if (command.Length <= 1)
+            {
+                UnturnedChat.Say(player, Instance.Translate("command_sms_syntax"), Color.yellow);
+                return;
+            }
 
             if (toPlayer == null)
             {
@@ -176,14 +188,6 @@ namespace RPChat.Core
                 return;
             }
 
-            string text = command.GetParameterString(1);
-            if (text == null)
-            {
-                UnturnedChat.Say(player, Instance.Translate("command_sms_syntax"), Color.yellow);
-                return;
-            }
-
-
             player.Experience -= Configuration.Instance.SMSChatCost;
 
 
@@ -196,8 +200,7 @@ namespace RPChat.Core
                 fromPlayer: player.SteamPlayer(),
                 toPlayer:   toPlayer.SteamPlayer(),
                 mode:       EChatMode.SAY,
-                iconURL:    string.IsNullOrEmpty(Configuration.Instance.SMSChatIcon) ? null : Configuration.Instance.SMSChatIcon,
-                Configuration.Instance.SMSChatUseRichTextFormating);
+                iconURL:    string.IsNullOrEmpty(Configuration.Instance.SMSChatIcon) ? null : Configuration.Instance.SMSChatIcon);
         }
 
 
@@ -205,7 +208,7 @@ namespace RPChat.Core
         public string ADChatLintenerPermission => "rpchat.ad.listener";
         [RocketCommand("ad", "", "/ad [text]", AllowedCaller.Player)]
         [RocketCommandPermission("rpchat.ad")]
-        private void ExecuteAdCommand(IRocketPlayer caller, string[] command) // /ad (text: 0)
+        public void ExecuteAdCommand(IRocketPlayer caller, string[] command) // /ad (text: 0)
         {
             UnturnedPlayer player = (UnturnedPlayer)caller;
 
@@ -233,7 +236,7 @@ namespace RPChat.Core
             player.Experience -= Configuration.Instance.ADChatCost;
 
 
-            GetSteamPlayersInRadius(player.Position, Configuration.Instance.ADChatRadius, (p) => UnturnedPlayer.FromSteamPlayer(p).HasPermission(ADChatLintenerPermission)).ForEach((steamPlayer) =>
+            GetSteamPlayersInRadius(player.Position, Configuration.Instance.ADChatRadius, (p) => PlayerHasPermission(UnturnedPlayer.FromSteamPlayer(p), ADChatLintenerPermission)).ForEach((steamPlayer) =>
             {
                 ChatManager.serverSendMessage(
                     text: Instance.Translate("command_ad_message", player.CharacterName, text),
@@ -241,8 +244,7 @@ namespace RPChat.Core
                     fromPlayer: player.SteamPlayer(),
                     toPlayer: steamPlayer,
                     mode: EChatMode.SAY,
-                    iconURL: string.IsNullOrEmpty(Configuration.Instance.ADChatIcon) ? null : Configuration.Instance.ADChatIcon,
-                    Configuration.Instance.ADChatUseRichTextFormating);
+                    iconURL: string.IsNullOrEmpty(Configuration.Instance.ADChatIcon) ? null : Configuration.Instance.ADChatIcon);
             });
         }
 
@@ -251,7 +253,7 @@ namespace RPChat.Core
         public string DNChatListenerPermission => "rpchat.dn.listener";
         [RocketCommand("dn", "", "/dn [text]", AllowedCaller.Player)]
         [RocketCommandPermission("rpchat.dn")]
-        private void ExecuteDnCommand(IRocketPlayer caller, string[] command) // /dn (text: 0)
+        public void ExecuteDnCommand(IRocketPlayer caller, string[] command) // /dn (text: 0)
         {
             UnturnedPlayer player = (UnturnedPlayer)caller;
 
@@ -279,7 +281,7 @@ namespace RPChat.Core
             player.Experience -= Configuration.Instance.DNChatCost;
 
 
-            GetSteamPlayersInRadius(player.Position, Configuration.Instance.DNChatRadius, (p) => UnturnedPlayer.FromSteamPlayer(p).HasPermission(DNChatListenerPermission)).ForEach((steamPlayer) => 
+            GetSteamPlayersInRadius(player.Position, Configuration.Instance.DNChatRadius, (p) => PlayerHasPermission(UnturnedPlayer.FromSteamPlayer(p), DNChatListenerPermission)).ForEach((steamPlayer) => 
             {
                 ChatManager.serverSendMessage(
                     text: Instance.Translate("command_dn_message", player.CharacterName, text),
@@ -287,8 +289,7 @@ namespace RPChat.Core
                     fromPlayer: player.SteamPlayer(),
                     toPlayer: steamPlayer,
                     mode: EChatMode.SAY,
-                    iconURL: string.IsNullOrEmpty(Configuration.Instance.DNChatIcon) ? null : Configuration.Instance.DNChatIcon,
-                    Configuration.Instance.DNChatUseRichTextFormating);
+                    iconURL: string.IsNullOrEmpty(Configuration.Instance.DNChatIcon) ? null : Configuration.Instance.DNChatIcon);
             });
         }
 
@@ -296,7 +297,7 @@ namespace RPChat.Core
 
         [RocketCommand("me", "", "/me [text]", AllowedCaller.Player)]
         [RocketCommandPermission("rpchat.me")]
-        private void ExecuteMeCommand(IRocketPlayer caller, string[] command) // /me (text: 0)
+        public void ExecuteMeCommand(IRocketPlayer caller, string[] command) // /me (text: 0)
         {
             UnturnedPlayer player = (UnturnedPlayer)caller;
             string text = command.GetParameterString(0);
@@ -314,8 +315,7 @@ namespace RPChat.Core
                     fromPlayer: player.SteamPlayer(),
                     toPlayer:   steamPlayer,
                     mode:       EChatMode.SAY,
-                    iconURL:    null,
-                    Configuration.Instance.MEChatUseRichTextFormating);
+                    iconURL:    null);
             });
             
             
@@ -325,7 +325,7 @@ namespace RPChat.Core
 
         [RocketCommand("s", "", "/s [text]", AllowedCaller.Player)]
         [RocketCommandPermission("rpchat.s")]
-        private void ExecuteSCommand(IRocketPlayer caller, string[] command) // /s (text: 0)
+        public void ExecuteSCommand(IRocketPlayer caller, string[] command) // /s (text: 0)
         {
             UnturnedPlayer player = (UnturnedPlayer)caller;
             string text = command.GetParameterString(0);
@@ -343,8 +343,7 @@ namespace RPChat.Core
                     fromPlayer: player.SteamPlayer(),
                     toPlayer:   steamPlayer,
                     mode:       EChatMode.SAY,
-                    iconURL:    null,
-                    Configuration.Instance.SChatUseRichTextFormating);
+                    iconURL:    null);
             });
         }
 
@@ -352,7 +351,7 @@ namespace RPChat.Core
 
         [RocketCommand("w", "", "/w [text]", AllowedCaller.Player)]
         [RocketCommandPermission("rpchat.w")]
-        private void ExecuteWCommand(IRocketPlayer caller, string[] command) // /w (text: 0)
+        public void ExecuteWCommand(IRocketPlayer caller, string[] command) // /w (text: 0)
         {
             UnturnedPlayer player = (UnturnedPlayer)caller;
             string text = command.GetParameterString(0);
@@ -370,8 +369,7 @@ namespace RPChat.Core
                     fromPlayer: player.SteamPlayer(),
                     toPlayer:   steamPlayer,
                     mode:       EChatMode.SAY,
-                    iconURL:    null,
-                    Configuration.Instance.WChatUseRichTextFormating);
+                    iconURL:    null);
             });
         }
 
@@ -379,7 +377,7 @@ namespace RPChat.Core
 
         [RocketCommand("try", "", "/try [text]", AllowedCaller.Player)]
         [RocketCommandPermission("rpchat.try")]
-        private void ExecuteTryCommand(IRocketPlayer caller, string[] command) // /try (text: 0)
+        public void ExecuteTryCommand(IRocketPlayer caller, string[] command) // /try (text: 0)
         {
             UnturnedPlayer player = (UnturnedPlayer)caller;
             string text = command.GetParameterString(0);
@@ -399,11 +397,9 @@ namespace RPChat.Core
                     fromPlayer: player.SteamPlayer(),
                     toPlayer:   steamPlayer,
                     mode:       EChatMode.SAY,
-                    iconURL:    null,
-                    Configuration.Instance.TRYChatUseRichTextFormating);
+                    iconURL:    null);
             });
         }
-
 
 
         #endregion

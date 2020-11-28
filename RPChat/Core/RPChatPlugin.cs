@@ -45,10 +45,10 @@ namespace RPChat.Core
             { "command_sms_to_myself",              "Нет смысла писать sms самому себе" },      // -
             { "command_sms_syntax",                 "Используйте: /sms (игрок) [текст]" },      // -
             { "command_sms_dont_have_item",         "Купите телефон чтобы отправлять SMS" },    // {0} - item id
-            { "command_sms_not_enough_currency",    "На вашем балансе недостаточно средств" },  // {0} - corrent currency, {1} - sms cost, {2} - how much is missing
-            { "command_sms_sended",                 "SMS отправлено!" },                        // {0} - to player name, {1} - message
+            { "command_sms_not_enough_currency",    "На вашем балансе недостаточно средств" },  // {0} - corrent currency, {1} - sms cost, {2} - how much is missing         
+            { "command_sms_send_messege",           "[SMS для {0}]: {0}" },                     // {0} - to player name, {1} - message
+            { "command_sms_sended",                 "Отправлено!" },                            // -
             { "command_sms_message",                "[SMS от {0}]: {1}" },                      // {0} - from player name, {1} - message
-            { "command_sms_sended_messege",         "Сообщение: {0}" },                         // {0} - message
 
             { "command_ad_syntax",              "Используйте: /ad [текст]" },                   // -
             { "command_ad_dont_have_item",      "Купите телефон чтобы отправить объявление" },  // {0} - item id
@@ -77,7 +77,7 @@ namespace RPChat.Core
             { "command_rpchat_me_command", "/me [действие]  - Действие" },
             { "command_rpchat_s_command", "/s [текст]  - Крикнуть" },
             { "command_rpchat_w_command", "/w [тектс]  - Прошептать" },
-            { "command_rpchat_try_command", "/try [действие]  - Попытаться что-то сдеать" },
+            { "command_rpchat_try_command", "/try [действие]  - Попытаться что-то сделать" },
         };
 
 
@@ -194,7 +194,7 @@ namespace RPChat.Core
                 return;
             }
 
-            if (toPlayer == player)
+            if (player.Equals(toPlayer))
             {
                 UnturnedChat.Say(player, Instance.Translate("command_sms_to_myself"), Color.red);
                 return;
@@ -217,8 +217,8 @@ namespace RPChat.Core
             player.Experience -= Configuration.Instance.SMSChatCost;
 
 
-            UnturnedChat.Say(player, Instance.Translate("command_sms_sended", toPlayer.CharacterName, text), UnturnedChat.GetColorFromName(Configuration.Instance.SMSChatColor, Color.green));
-            UnturnedChat.Say(player, Instance.Translate("command_sms_sended_messege", text), UnturnedChat.GetColorFromName(Configuration.Instance.SMSChatColor, Color.green));
+            UnturnedChat.Say(player, Instance.Translate("command_sms_send_messege", toPlayer.CharacterName, text), UnturnedChat.GetColorFromName(Configuration.Instance.SMSChatColor, Color.green));
+            UnturnedChat.Say(player, Instance.Translate("command_sms_sended"), UnturnedChat.GetColorFromName(Configuration.Instance.SMSChatColor, Color.green));
 
             ChatManager.serverSendMessage(
                 text:       Instance.Translate("command_sms_message", player.CharacterName, text),
